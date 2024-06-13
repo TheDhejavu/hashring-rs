@@ -1,6 +1,21 @@
 extern crate hashring;
 
-use hashring::{Config, HashRing, Member};
+use std::sync::Arc;
+
+use hashring::{Config, HashRing, Node as HashRingNode};
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct Node {
+    pub ip_addr: String,
+    pub name: String,
+}
+
+impl HashRingNode for Node {
+    fn id(&self) -> &str {
+        &self.name
+    }
+}
+
 
 fn main() {
     let config = Config {
@@ -11,22 +26,23 @@ fn main() {
     // Create a new HashRing using the configuration
     let mut hash_ring = HashRing::new(config).unwrap();
 
-    // Add members to the HashRing
-    let _ = hash_ring.add_member(Member {
+    // Add nodes to the HashRing
+    let _ = hash_ring.add_node(Arc::new(Node {
         ip_addr: "192.168.0.1".to_string(),
         name: "node1".to_string(),
-    });
+    }));
 
-    let _ = hash_ring.add_member(Member {
+    let _ = hash_ring.add_node(Arc::new(Node {
         ip_addr: "192.168.0.2".to_string(),
         name: "node2".to_string(),
-    });
+    }));
 
-    // Retrieve a member responsible for a given key
-    let key = b"500";
-    if let Some(member) = hash_ring.get_key(key) {
-        println!("Member responsible for key: {:?}", member);
+    // Retrieve a node responsible for a given key
+    let key = b"some_random_key";
+    if let Some(node) = hash_ring.get_key(key) {
+        // Print the node information using the Display implementation
+        println!("Node responsible for key {}: {}", String::from_utf8_lossy(key), node);
     } else {
-        println!("No member found for the key");
+        println!("No node found for the key");
     }
 }
