@@ -70,6 +70,7 @@
 // }
 /// ```
 
+
 use core::fmt;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
@@ -148,11 +149,14 @@ where
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use core::hash::BuildHasherDefault;
+    /// use hashring::Config;
+    /// use hashring::HashRing;
+    /// 
     /// type CustomBuildHasher = BuildHasherDefault<std::collections::hash_map::DefaultHasher>;
     /// let config = Config::default();
-    //  let hasher = CustomBuildHasher::default();
-    /// let hash_ring = HashRing::with_hasher(config, hasher).unwrap();
+    /// let hash_ring = HashRing::with_hasher(config, CustomBuildHasher::default()).unwrap();
     /// ```
     pub fn with_hasher(config: Config, hasher: H) -> Result<HashRing<'a, H>, Box<dyn Error>> {
         config.validate()?;
@@ -180,13 +184,32 @@ where
     /// # Example
     ///
     /// ```
+    /// use std::sync::Arc;
+    /// use std::fmt::Debug;
+    /// use std::sync::RwLock;
+    /// use std::collections::{BTreeMap, HashMap};
+    /// use hashring::{HashRing, Config, Node};
+    /// 
+    /// #[derive(Debug)]
+    /// struct MyNode<'a> {
+    ///     name: &'a str,
+    ///     ip_addr: String,
+    /// }
+    /// 
+    /// impl<'a> Node<'a> for MyNode<'a> {
+    ///     fn id(&self) -> &'a str {
+    ///         self.name
+    ///     }
+    /// }
+    /// 
     /// let config = Config::default();
     /// let mut hash_ring = HashRing::new(config).unwrap();
-    ///
-    /// let node = Arc::new(Node {
+    /// 
+    /// let node = Arc::new(MyNode {
     ///     ip_addr: "192.168.0.1".to_string(),
-    ///     name: "node1".to_string(),
+    ///     name: "node1",
     /// });
+    ///     
     /// hash_ring.add_node(node).unwrap();
     /// ```
     pub fn add_node(&mut self, node: Arc<dyn Node<'a> + 'a>) -> Result<Arc<dyn Node<'a> + 'a>, Box<dyn Error>> {
@@ -225,11 +248,32 @@ where
     /// ```
     /// let config = Config::default();
     /// let mut hash_ring = HashRing::new(config).unwrap();
-    ///
-    /// let node = Arc::new(Node {
+    /// use std::sync::Arc;
+    /// use std::fmt::Debug;
+    /// use std::sync::RwLock;
+    /// use std::collections::{BTreeMap, HashMap};
+    /// use hashring::{HashRing, Config, Node};
+    /// 
+    /// #[derive(Debug)]
+    /// struct MyNode<'a> {
+    ///     name: &'a str,
+    ///     ip_addr: String,
+    /// }
+    /// 
+    /// impl<'a> Node<'a> for MyNode<'a> {
+    ///     fn id(&self) -> &'a str {
+    ///         self.name
+    ///     }
+    /// }
+    /// 
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    /// 
+    /// let node = Arc::new(MyNode {
     ///     ip_addr: "192.168.0.1".to_string(),
-    ///     name: "node1".to_string(),
+    ///     name: "node1",
     /// });
+    /// 
     /// hash_ring.add_node(node.clone()).unwrap();
     /// hash_ring.remove_node(node.id()).unwrap();
     /// ```
@@ -309,13 +353,30 @@ where
     /// # Example
     ///
     /// ```
+    /// use std::sync::Arc;
+    /// use std::fmt::Debug;
+    /// use std::sync::RwLock;
+    /// use std::collections::{BTreeMap, HashMap};
+    /// use hashring::{HashRing, Config, Node};
+    /// 
+    /// #[derive(Debug)]
+    /// struct MyNode<'a> {
+    ///     name: &'a str,
+    /// }
+    /// 
+    /// impl<'a> Node<'a> for MyNode<'a> {
+    ///     fn id(&self) -> &'a str {
+    ///         self.name
+    ///     }
+    /// }
+    /// 
     /// let config = Config::default();
     /// let mut hash_ring = HashRing::new(config).unwrap();
-    ///
-    /// let node = Arc::new(Node {
-    ///     ip_addr: "192.168.0.1".to_string(),
-    ///     name: "node1".to_string(),
+    /// 
+    /// let node = Arc::new(MyNode {
+    ///     name: "node1",
     /// });
+    /// 
     /// hash_ring.add_node(node).unwrap();
     ///
     /// let key = b"some_key";
@@ -342,13 +403,30 @@ where
     /// # Example
     ///
     /// ```
+    /// use std::sync::Arc;
+    /// use std::fmt::Debug;
+    /// use std::sync::RwLock;
+    /// use std::collections::{BTreeMap, HashMap};
+    /// use hashring::{HashRing, Config, Node};
+    /// 
+    /// #[derive(Debug)]
+    /// struct MyNode<'a> {
+    ///     name: &'a str,
+    /// }
+    /// 
+    /// impl<'a> Node<'a> for MyNode<'a> {
+    ///     fn id(&self) -> &'a str {
+    ///         self.name
+    ///     }
+    /// }
+    /// 
     /// let config = Config::default();
     /// let mut hash_ring = HashRing::new(config).unwrap();
-    ///
-    /// let node = Arc::new(Node {
-    ///     ip_addr: "192.168.0.1".to_string(),
-    ///     name: "node1".to_string(),
+    /// 
+    /// let node = Arc::new(MyNode {
+    ///     name: "node1",
     /// });
+    /// 
     /// hash_ring.add_node(node).unwrap();
     ///
     /// let virtual_nodes = hash_ring.virtual_nodes_per_node();
@@ -378,19 +456,36 @@ where
     /// # Example
     ///
     /// ```
+    /// use std::sync::Arc;
+    /// use std::fmt::Debug;
+    /// use std::sync::RwLock;
+    /// use std::collections::{BTreeMap, HashMap};
+    /// use hashring::{HashRing, Config, Node};
+    /// 
+    /// #[derive(Debug)]
+    /// struct MyNode<'a> {
+    ///     name: &'a str,
+    /// }
+    /// 
+    /// impl<'a> Node<'a> for MyNode<'a> {
+    ///     fn id(&self) -> &'a str {
+    ///         self.name
+    ///     }
+    /// }
+    /// 
     /// let config = Config::default();
     /// let mut hash_ring = HashRing::new(config).unwrap();
-    ///
-    /// let node = Arc::new(Node {
-    ///     ip_addr: "192.168.0.1".to_string(),
-    ///     name: "node1".to_string(),
+    /// 
+    /// let node = Arc::new(MyNode {
+    ///     name: "node1",
     /// });
+    /// 
     /// hash_ring.add_node(node).unwrap();
     ///
     /// let key = b"some_key";
     /// let preference_list = hash_ring.get_preference_list(key);
     /// for node in preference_list {
-    ///     println!("Node in preference list: {}", node);
+    ///     println!("Node in preference list: {:?}", node);
     /// }
     /// ```
     pub fn get_preference_list(&self, key: &[u8]) -> Vec<Arc<dyn Node<'a> + 'a>> {
