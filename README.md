@@ -109,4 +109,4 @@ let config = Config {
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request on GitHub.
+Contributions are welcome! Please open an issue if you come accross any!

@@ -15,7 +15,7 @@
 // 
 // Example Usage:
 // --------------
-//
+/// ```rust
 // use core::fmt;
 // use std::sync::Arc;
 //
@@ -68,6 +68,7 @@
 //         println!("No node found for the key");
 //     }
 // }
+/// ```
 
 use core::fmt;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -82,11 +83,11 @@ type XxHash64Hasher = BuildHasherDefault<Xxh3>;
 const DEFAULT_PARTITION_COUNT: usize = 271;
 const DEFAULT_REPLICATION_FACTOR: usize = 20;
 
-pub trait Node: Send + Sync + Debug {
-    fn id(&self) -> &str;
+pub trait Node<'a>: Send + Sync + Debug {
+    fn id(&self) -> &'a str;
 }
 
-impl fmt::Display for dyn Node {
+impl<'a> fmt::Display for dyn Node<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}", self.id())
     }
@@ -108,36 +109,54 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self) -> Result<(),Box<dyn Error>> {
         if self.partition_count == 0 {
-            return Err("Partition count must be greater than 0");
+            return Err("Partition count must be greater than 0")?;
         }
         if self.replication_factor == 0 {
-            return Err("Replication factor must be greater than 0");
+            return Err("Replication factor must be greater than 0")?;
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct HashRing<S = XxHash64Hasher> {
+pub struct HashRing<'a, H = XxHash64Hasher> {
     config: Config,
-    hasher: S,
-    nodes: Arc<RwLock<HashMap<String, Arc<dyn Node>>>>,
-    sorted_nodes_hash_set: Arc<RwLock<BTreeMap<u64, Arc<dyn Node>>>>,
-    partitions: Arc<RwLock<HashMap<usize, Arc<dyn Node>>>>,
+    hasher: H,
+    nodes: Arc<RwLock<HashMap<String, Arc<dyn Node<'a> + 'a>>>>,
+    sorted_nodes_hash_set: Arc<RwLock<BTreeMap<u64, Arc<dyn Node<'a> + 'a>>>>,
+    partitions: Arc<RwLock<HashMap<usize, Arc<dyn Node<'a> + 'a>>>>,
 }
 
-impl HashRing<XxHash64Hasher> {
-    pub fn new(config: Config) -> Result<HashRing<XxHash64Hasher>, Box<dyn Error>> {
+impl<'a> HashRing<'a, XxHash64Hasher> {
+    pub fn new(config: Config) -> Result<HashRing<'a, XxHash64Hasher>, Box<dyn Error>> {
         HashRing::with_hasher(config, XxHash64Hasher::default())
     }
 }
 
-impl<H> HashRing<H> where H: BuildHasher {
-    pub fn with_hasher(config: Config, hasher: H)-> Result<HashRing<H>, Box<dyn Error>> {
+impl<'a, H> HashRing<'a, H>
+where
+    H: BuildHasher,
+{
+    /// Creates a new `HashRing` with the specified configuration and hasher.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - A `Config` struct that defines the replication factor and partition count.
+    /// * `hasher` - A custom hasher that implements the `BuildHasher` trait.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// type CustomBuildHasher = BuildHasherDefault<std::collections::hash_map::DefaultHasher>;
+    /// let config = Config::default();
+    //  let hasher = CustomBuildHasher::default();
+    /// let hash_ring = HashRing::with_hasher(config, hasher).unwrap();
+    /// ```
+    pub fn with_hasher(config: Config, hasher: H) -> Result<HashRing<'a, H>, Box<dyn Error>> {
         config.validate()?;
-        let hashring: HashRing<H> = Self {
+        let hash_ring = HashRing {
             nodes: Arc::new(RwLock::new(HashMap::new())),
             sorted_nodes_hash_set: Arc::new(RwLock::new(BTreeMap::new())),
             partitions: Arc::new(RwLock::new(HashMap::new())),
@@ -145,13 +164,35 @@ impl<H> HashRing<H> where H: BuildHasher {
             hasher,
         };
 
-        Ok(hashring)
+        Ok(hash_ring)
     }
 
-    pub fn add_node(&mut self, node: Arc<dyn Node>) -> Result<Arc<dyn Node>, Box<dyn Error>> {
+    /// Adds a node to the `HashRing`.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - An `Arc` containing a `Node` to be added to the hash ring.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Arc<dyn Node<'a> + 'a>, Box<dyn Error>>` - On success, returns the added node wrapped in an `Arc`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    ///
+    /// let node = Arc::new(Node {
+    ///     ip_addr: "192.168.0.1".to_string(),
+    ///     name: "node1".to_string(),
+    /// });
+    /// hash_ring.add_node(node).unwrap();
+    /// ```
+    pub fn add_node(&mut self, node: Arc<dyn Node<'a> + 'a>) -> Result<Arc<dyn Node<'a> + 'a>, Box<dyn Error>> {
         let mut nodes = self.nodes.write().map_err(|_| "unable to acquire lock")?;
         if nodes.contains_key(node.id()) {
-            return Err("node already exist")?;
+            return Err("node already exist".into());
         }
 
         let mut sorted_set = self.sorted_nodes_hash_set.write().map_err(|_| "unable to acquire lock")?;
@@ -169,6 +210,29 @@ impl<H> HashRing<H> where H: BuildHasher {
         Ok(node)
     }
 
+    /// Removes a node from the `HashRing`.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The ID of the node to be removed.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), Box<dyn Error>>` - On success, returns `Ok(())`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    ///
+    /// let node = Arc::new(Node {
+    ///     ip_addr: "192.168.0.1".to_string(),
+    ///     name: "node1".to_string(),
+    /// });
+    /// hash_ring.add_node(node.clone()).unwrap();
+    /// hash_ring.remove_node(node.id()).unwrap();
+    /// ```
     pub fn remove_node(&mut self, id: &str) -> Result<(), Box<dyn Error>> {
         let mut sorted_set = self.sorted_nodes_hash_set.write().map_err(|_| "unable to acquire lock")?;
         let mut nodes = self.nodes.write().map_err(|_| "unable to acquire lock")?;
@@ -232,7 +296,34 @@ impl<H> HashRing<H> where H: BuildHasher {
             .unwrap_or(0)
     }
 
-    pub fn get_key(&self, key: &[u8]) -> Option<Arc<dyn Node>> {
+    /// Retrieves the node responsible for the given key.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key for which the responsible node is to be found.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<Arc<dyn Node<'a> + 'a>>` - The node responsible for the given key, if found.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    ///
+    /// let node = Arc::new(Node {
+    ///     ip_addr: "192.168.0.1".to_string(),
+    ///     name: "node1".to_string(),
+    /// });
+    /// hash_ring.add_node(node).unwrap();
+    ///
+    /// let key = b"some_key";
+    /// if let Some(node) = hash_ring.get_key(key) {
+    ///     println!("Node responsible for key: {}", node);
+    /// }
+    /// ```
+    pub fn get_key(&self, key: &[u8]) -> Option<Arc<dyn Node<'a> + 'a>> {
         let hashed_key = self.hash_key(key);
         let sorted_set = self.sorted_nodes_hash_set.read().ok()?;
         sorted_set
@@ -242,6 +333,29 @@ impl<H> HashRing<H> where H: BuildHasher {
             .map(|(_, node)| node.clone())
     }
 
+    /// Returns a mapping of nodes to their number of virtual nodes in the hash ring.
+    ///
+    /// # Returns
+    ///
+    /// * `HashMap<String, usize>` - A mapping of node IDs to their virtual node count.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    ///
+    /// let node = Arc::new(Node {
+    ///     ip_addr: "192.168.0.1".to_string(),
+    ///     name: "node1".to_string(),
+    /// });
+    /// hash_ring.add_node(node).unwrap();
+    ///
+    /// let virtual_nodes = hash_ring.virtual_nodes_per_node();
+    /// for (node_id, count) in virtual_nodes {
+    ///     println!("Node ID: {}, Virtual Nodes: {}", node_id, count);
+    /// }
+    /// ```
     pub fn virtual_nodes_per_node(&self) -> HashMap<String, usize> {
         let mut virtual_nodes = HashMap::new();
         let sorted_set = self.sorted_nodes_hash_set.read().unwrap();
@@ -251,8 +365,36 @@ impl<H> HashRing<H> where H: BuildHasher {
         virtual_nodes
     }
 
-    pub fn get_preference_list(&self, key: &[u8]) -> Vec<Arc<dyn Node>> {
-        let mut preference_list: Vec<Arc<dyn Node>> = Vec::new();
+    /// Retrieves the preference list of nodes responsible for the given key.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key for which the preference list is to be found.
+    ///
+    /// # Returns
+    ///
+    /// * `Vec<Arc<dyn Node<'a> + 'a>>` - A vector of nodes in the preference list for the given key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let config = Config::default();
+    /// let mut hash_ring = HashRing::new(config).unwrap();
+    ///
+    /// let node = Arc::new(Node {
+    ///     ip_addr: "192.168.0.1".to_string(),
+    ///     name: "node1".to_string(),
+    /// });
+    /// hash_ring.add_node(node).unwrap();
+    ///
+    /// let key = b"some_key";
+    /// let preference_list = hash_ring.get_preference_list(key);
+    /// for node in preference_list {
+    ///     println!("Node in preference list: {}", node);
+    /// }
+    /// ```
+    pub fn get_preference_list(&self, key: &[u8]) -> Vec<Arc<dyn Node<'a> + 'a>> {
+        let mut preference_list: Vec<Arc<dyn Node<'a> + 'a>> = Vec::new();
         let hashed_key = self.hash_key(key);
         let sorted_set = self.sorted_nodes_hash_set.read().unwrap();
         let mut unique_nodes = HashSet::new();
@@ -269,20 +411,19 @@ impl<H> HashRing<H> where H: BuildHasher {
         preference_list
     }
 }
-
 // Tests
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-    pub struct TestNode {
+    pub struct TestNode<'a> {
         pub ip_addr: String,
-        pub name: String,
+        pub name: &'a str,
     }
 
-    impl Node for TestNode {
-        fn id(&self) -> &str {
+    impl<'a> Node<'a> for TestNode<'a> {
+        fn id(&self) -> &'a str {
             &self.name
         }
     }
@@ -298,14 +439,14 @@ mod tests {
 
         let node1 = hash_ring.add_node(Arc::new(TestNode {
             ip_addr: "180.01.01.2:5000".to_string(),
-            name: "node1".to_string(),
+            name: "node1",
         }));
 
         assert_eq!(node1.is_ok(), true);
 
         let node2 = hash_ring.add_node(Arc::new(TestNode {
             ip_addr: "170.01.01.2:5000".to_string(),
-            name: "node2".to_string(),
+            name: "node2"
         }));
         assert_eq!(node2.is_ok(), true);
 
@@ -325,14 +466,14 @@ mod tests {
         hash_ring.add_node(Arc::new(
             TestNode {
                 ip_addr: "170.01.01.1:1000".to_string(),
-                name: "node1".to_string(),
+                name: "node1"
             }
         )).unwrap();
 
         hash_ring.add_node(Arc::new(
             TestNode {
                 ip_addr: "170.01.01.2:2000".to_string(),
-                name: "node2".to_string(),
+                name: "node2"
             }
         )).unwrap();
 
@@ -355,12 +496,12 @@ mod tests {
 
         let node1 = Arc::new(TestNode {
             ip_addr: "127.0.0.1:5000".to_string(),
-            name: "node1".to_string(),
+            name: "node1"
         });
 
         let node2 = Arc::new(TestNode {
             ip_addr: "127.0.0.1:6000".to_string(),
-            name: "node2".to_string(),
+            name: "node2"
         });
 
         hash_ring.add_node(node1.clone()).unwrap();
@@ -383,14 +524,14 @@ mod tests {
         hash_ring.add_node(Arc::new(
             TestNode {
                 ip_addr: "170.01.01.1".to_string(),
-                name: "node1".to_string(),
+                name: "node1"
             }
         )).unwrap();
 
         hash_ring.add_node(Arc::new(
             TestNode {
                 ip_addr: "170.01.01.2".to_string(),
-                name: "node2".to_string(),
+                name: "node2"
             }
         )).unwrap();
 
@@ -414,14 +555,14 @@ mod tests {
         let node1 = Arc::new(
             TestNode {
                 ip_addr: "127.0.0.1:5000".to_string(),
-                name: "node1".to_string(),
+                name: "node1"
             }
         );
 
         let node2 = Arc::new(
             TestNode {
                 ip_addr: "127.0.0.1:6000".to_string(),
-                name: "node2".to_string(),
+                name: "node2"
             }
         );
 
