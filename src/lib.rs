@@ -12,16 +12,16 @@
 //    - Each partition will map to a specific range of hashes, ensuring that the data is evenly distributed 
 //      across all available nodes. This helps in managing the load and providing fault tolerance.
 
-use std::{collections::{BTreeMap, HashMap}, error::Error, hash::{BuildHasher, BuildHasherDefault, Hasher}};
-use std::hash::DefaultHasher;
+use std::{collections::{BTreeMap, HashMap}, error::Error};
+use xxhash_rust::xxh3::xxh3_64;
 
 const DEFAULT_PARTITION_COUNT: usize = 271;
 const DEFAULT_REPLICATION_FACTOR: usize = 20;
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    replication_factor: usize,
-    partition_count: usize,
+    pub replication_factor: usize,
+    pub partition_count: usize,
 }
 
 impl Default for Config {
@@ -36,11 +36,11 @@ impl Default for Config {
 impl Config {
     pub fn validate(&self) -> Result<(), Box<dyn Error>> {
         if self.partition_count == 0 {
-            return Err("Partition count must be greater than 0")?;
+            return Err("Partition count must be greater than 0".into());
         }
 
         if self.replication_factor == 0 {
-            return Err("Replication factor must be greater than 0")?;
+            return Err("Replication factor must be greater than 0".into());
         }
         Ok(())
     }
@@ -56,12 +56,12 @@ pub struct HashRing {
 
 #[derive(Debug, Clone)]
 pub struct Member {
-    ip_addr: String,
-    name: String,
+    pub ip_addr: String,
+    pub name: String,
 }
 
 impl HashRing {
-    fn new(config: Config) -> Result<Self, Box<dyn Error>> {
+    pub fn new(config: Config) -> Result<Self, Box<dyn Error>> {
         config.validate()?;
         Ok(Self {
             members: HashMap::new(),
@@ -73,7 +73,7 @@ impl HashRing {
 
     pub fn add_member(&mut self, member: Member) -> Result<Member, Box<dyn Error>> {
         if self.members.contains_key(&member.name) {
-            return Err("Member already exists")?;
+            return Err("Member already exists".into());
         }
 
         for i in 0..self.config.replication_factor {
@@ -88,22 +88,16 @@ impl HashRing {
     }
 
     fn hash_with_replica_idx(&self, name: &str, replica: usize) -> u64 {
-        let mut hasher = BuildHasherDefault::<DefaultHasher>::default().build_hasher();
-        hasher.write(name.as_bytes());
-        hasher.write(&replica.to_ne_bytes());
-        hasher.finish()
+        let data = format!("{}:{}", name, replica);
+        xxh3_64(data.as_bytes())
     }
 
     fn hash_partition_id(&self, part_id: usize) -> u64 {
-        let mut hasher = BuildHasherDefault::<DefaultHasher>::default().build_hasher();
-        hasher.write(&part_id.to_ne_bytes());
-        hasher.finish()
+        xxh3_64(&part_id.to_ne_bytes())
     }
 
     fn hash_key(&self, key: &[u8]) -> u64 {
-        let mut hasher = BuildHasherDefault::<DefaultHasher>::default().build_hasher();
-        hasher.write(key);
-        hasher.finish()
+        xxh3_64(key)
     }
 
     fn distribute_partitions(&mut self) {
