@@ -1,10 +1,9 @@
-# HashRing
+# HashRing ⚠️ (WIP)
 
 A Rust Implementation of a distributed hashing algorithm used to achieve load balancing and minimize the need for rehashing when the number of nodes in a system changes
 
 ## Features
 
-- **Consistent Hashing**: Efficiently distribute data across multiple nodes.
 - **Node Replication**: Each node can be replicated multiple times to ensure balanced load distribution.
 - **Partitioning**: Evenly partition the hash space to manage and allocate data efficiently.
 
@@ -24,7 +23,21 @@ hashring = { git = "https://github.com/TheDhejavu/hashring-rs.git" }
 First, create a `Config` to specify the replication factor and partition count. Then, create a `HashRing` using this configuration.
 
 ```rust
-use hashring::{Config, HashRing, Member};
+use std::sync::Arc;
+
+use hashring::{Config, HashRing, Node as HashRingNode};
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct Node {
+    pub ip_addr: String,
+    pub name: String,
+}
+
+impl HashRingNode for Node {
+    fn id(&self) -> &str {
+        &self.name
+    }
+}
 
 fn main() {
     let config = Config {
@@ -35,50 +48,51 @@ fn main() {
     // Create a new HashRing using the configuration
     let mut hash_ring = HashRing::new(config).unwrap();
 
-    // Add members to the HashRing
-    let _ = hash_ring.add_member(Member {
+    // Add nodes to the HashRing
+    let _ = hash_ring.add_node(Arc::new(Node {
         ip_addr: "192.168.0.1".to_string(),
         name: "node1".to_string(),
-    });
+    }));
 
-    let _ = hash_ring.add_member(Member {
+    let _ = hash_ring.add_node(Arc::new(Node {
         ip_addr: "192.168.0.2".to_string(),
         name: "node2".to_string(),
-    });
+    }));
 
-    // Retrieve a member responsible for a given key
-    let key = b"500";
-    if let Some(member) = hash_ring.get_key(key) {
-        println!("Member responsible for key: {:?}", member);
+    // Retrieve a node responsible for a given key
+    let key = b"some_random_key";
+    if let Some(node) = hash_ring.get_key(key) {
+        // Print the node information using the Display implementation
+        println!("Node responsible for key {}: {}", String::from_utf8_lossy(key), node);
     } else {
-        println!("No member found for the key");
+        println!("No node found for the key");
     }
 }
 ```
 
-### Adding Members
+### Adding Nodes
 
-Members can be added to the hash ring using the `add_member` method. Each member will be hashed and inserted into the ring multiple times based on the replication factor.
+Nodes can be added to the hash ring using the `add_node` method. Each node will be hashed and inserted into the ring multiple times based on the replication factor.
 
 ```rust
-let member = Member {
-    ip_addr: "192.168.0.3".to_string(),
+let node = Arc::new(Node {
+    ip_addr: "192.168.0.3:5000".to_string(),
     name: "node3".to_string(),
-};
+});
 
-hash_ring.add_member(member)?;
+hash_ring.add_node(node)?;
 ```
 
-### Retrieving Members
+### Retrieving nodes
 
-To retrieve the member responsible for a specific key, use the `get_key` method. This method hashes the key and finds the closest member in the ring.
+To retrieve the node responsible for a specific key, use the `get_key` method. This method hashes the key and finds the closest node in the ring.
 
 ```rust
 let key = b"another_key";
-if let Some(member) = hash_ring.get_key(key) {
-    println!("Member responsible for key: {:?}", member);
+if let Some(node) = hash_ring.get_key(key) {
+    println!("node responsible for key: {:?}", node);
 } else {
-    println!("No member found for the key");
+    println!("No node found for the key");
 }
 ```
 
@@ -88,7 +102,7 @@ The `Config` struct allows you to specify the replication factor and the number 
 
 ```rust
 let config = Config {
-    replication_factor: 5,  // Number of times each member is replicated
+    replication_factor: 5,  // Number of times each node is replicated
     partition_count: 200,   // Number of partitions
 };
 ```
