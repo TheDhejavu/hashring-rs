@@ -149,7 +149,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```
     /// use core::hash::BuildHasherDefault;
     /// use hashring::Config;
     /// use hashring::HashRing;
