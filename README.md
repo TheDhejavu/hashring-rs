@@ -2,6 +2,14 @@
 
 A Rust Implementation of a distributed hashing algorithm used to achieve load balancing and minimize the need for rehashing when the number of nodes in a system changes
 
+
+>
+> What is consistent hashing ?
+>
+> "Consistent hashing is a caching protocol for distributed networks that can be used to decrease or eliminate the occurrences of 'hot spots'."
+>
+> *Source: [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)*
+
 ## Features
 
 - **Node Replication**: Each node can be replicated multiple times to ensure balanced load distribution.
@@ -109,4 +117,4 @@ let config = Config {
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request on GitHub.
+Contributions are welcome! Please open an issue if you come accross any!
