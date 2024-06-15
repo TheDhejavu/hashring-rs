@@ -36,13 +36,13 @@ use std::sync::Arc;
 use hashring::{Config, HashRing, Node as HashRingNode};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct Node {
-    pub ip_addr: String,
-    pub name: String,
+pub struct Node<'a> {
+    pub ip_addr: &'a str,
+    pub name: &'a str,
 }
 
-impl HashRingNode for Node {
-    fn id(&self) -> &str {
+impl<'a> HashRingNode<'a> for Node<'a> {
+    fn id(&self) -> &'a str {
         &self.name
     }
 }
@@ -58,13 +58,13 @@ fn main() {
 
     // Add nodes to the HashRing
     let _ = hash_ring.add_node(Arc::new(Node {
-        ip_addr: "192.168.0.1".to_string(),
-        name: "node1".to_string(),
+        ip_addr: "192.168.0.1",
+        name: "node1",
     }));
 
     let _ = hash_ring.add_node(Arc::new(Node {
-        ip_addr: "192.168.0.2".to_string(),
-        name: "node2".to_string(),
+        ip_addr: "192.168.0.2",
+        name: "node2",
     }));
 
     // Retrieve a node responsible for a given key
