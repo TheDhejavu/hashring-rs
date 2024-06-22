@@ -10,6 +10,9 @@ A Rust Implementation of a distributed hashing algorithm used to achieve load ba
 >
 > *Source: [Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web](https://www.cs.princeton.edu/courses/archive/fall09/cos518/papers/chash.pdf)*
 
+![Consistent Hashing](./chash.png)
+> *Source: [Image](https://courses.cs.washington.edu/courses/cse452/18sp/Dynamo.pdf)*
+
 ## Features
 
 - **Node Replication**: Each node can be replicated multiple times to ensure balanced load distribution.
